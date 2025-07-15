@@ -31,13 +31,13 @@ jobs:
           month=$(date -u +"%-m")
           day=$(date -u +"%-d")
 
-          m1=$(( (month - 1) / 2 ))
-          m2=$month
+          m1=$(( (month - 1) / 2 ))  # release group index
+          m2=$month                  # actual month number
 
           if [ "$day" -eq 1 ]; then
-            version="$year.$m1.$m2"
+            version="$year.$m1.$m2"         # release format: yyyy.m.m
           else
-            version="$year.$m1.$m2-$day"
+            version="$year.$m1.$m2-$day"    # test format: yyyy.m.m-dd
           fi
 
           echo "version=$version" >> $GITHUB_OUTPUT
