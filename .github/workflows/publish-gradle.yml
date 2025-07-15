@@ -27,17 +27,24 @@ jobs:
       - name: Calculate expected version
         id: version
         run: |
-          year=$(date -u +"%Y")
-          month=$(date -u +"%-m")
-          day=$(date -u +"%-d")
+          tz="Asia/Bangkok"
+          year=$(TZ=$tz date +"%Y")
+          month=$(TZ=$tz date +"%-m")
+          day=$(TZ=$tz date +"%-d")
 
-          m1=$(( (month - 1) / 2 ))  # release group index
-          m2=$month                  # actual month number
+          m1=$(( (month - 1) / 2 ))
+
+          # Custom m2 logic
+          if [ "$m1" -eq 1 ]; then
+            m2=0
+          else
+            m2=$month
+          fi
 
           if [ "$day" -eq 1 ]; then
-            version="$year.$m1.$m2"         # release format: yyyy.m.m
+            version="$year.$m1.$m2"
           else
-            version="$year.$m1.$m2-$day"    # test format: yyyy.m.m-dd
+            version="$year.$m1.$m2-$day"
           fi
 
           echo "version=$version" >> $GITHUB_OUTPUT
