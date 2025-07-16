@@ -143,4 +143,4 @@ jobs:
             "draft": false,
             "prerelease": false
           }
-EOF
+          EOF
