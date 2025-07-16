@@ -109,6 +109,7 @@ jobs:
           fi
 
       - name: Publish to GitHub Packages
+        id: publish
         run: |
           if [ -f ./gradlew ] && [ -f ./gradle/wrapper/gradle-wrapper.jar ]; then
             ./gradlew publish
@@ -120,3 +121,26 @@ jobs:
           USER_GIT_NAME: ${{ github.actor }}
           USER_GITHUB_TOKEN: ${{ secrets.USER_GITHUB_TOKEN }}
           REPO_NAME: ${{ inputs.repo-name }}
+
+      - name: Create GitHub Release
+        if: success()
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          tag="$version"
+          body="Automated release for version $version"
+          
+          git tag "$tag"
+          git push origin "$tag"
+
+          curl -s -X POST https://api.github.com/repos/${{ github.repository }}/releases \
+            -H "Authorization: token ${{ secrets.USER_GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d @- <<EOF
+          {
+            "tag_name": "$tag",
+            "name": "$tag",
+            "body": "$body",
+            "draft": false,
+            "prerelease": false
+          }
+EOF
