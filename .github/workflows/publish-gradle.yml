@@ -89,7 +89,8 @@ jobs:
             git config --global user.name "${{ github.actor }}"
             git config --global user.email "${{ github.actor }}@users.noreply.github.com"
             git commit -am "chore: update version to $expected"
-            git push
+            git remote set-url origin https://x-access-token:${{ secrets.USER_GITHUB_TOKEN }}@github.com/${{ github.repository }}
+            git push origin HEAD
           else
             echo "No version updates needed."
             rm "$tmpfile"
