@@ -32,7 +32,6 @@ jobs:
           month=$(TZ=$tz date +"%-m")
           day=$(TZ=$tz date +"%-d")
 
-          # Define m1 and m2 based on exact mapping
           case "$month" in
             1)  m1=0; m2=1 ;;
             2)  m1=0; m2=2 ;;
@@ -58,31 +57,42 @@ jobs:
 
           echo "version=$version" >> $GITHUB_OUTPUT
 
-      - name: Check version entries in gradle.properties
-        id: check_versions
+      - name: Check and Update Versions in gradle.properties
+        id: fix_versions
         run: |
           expected="${{ steps.version.outputs.version }}"
           echo "Expected version: $expected"
 
-          invalid=0
+          updated=0
+
+          tmpfile=$(mktemp)
 
           while IFS= read -r line; do
-            key=$(echo "$line" | cut -d'=' -f1)
-            val=$(echo "$line" | cut -d'=' -f2)
-
-            if [[ "$key" =~ ^mcengine(-[a-zA-Z0-9]+)?(-(api|common))?\.version$ ]]; then
+            if [[ "$line" =~ ^(mcengine(-[a-zA-Z0-9]+)?(-(api|common))?\.version)=(.*)$ ]]; then
+              key="${BASH_REMATCH[1]}"
+              val="${BASH_REMATCH[5]}"
               if [[ "$val" != "$expected" ]]; then
-                echo "::error ::Version mismatch: $key=$val (expected $expected)"
-                invalid=$((invalid + 1))
+                echo "$key=$expected" >> "$tmpfile"
+                echo "✎ Updated $key from $val to $expected"
+                updated=1
               else
+                echo "$line" >> "$tmpfile"
                 echo "✔ $key = $val"
               fi
+            else
+              echo "$line" >> "$tmpfile"
             fi
           done < gradle.properties
 
-          if [ "$invalid" -gt 0 ]; then
-            echo "::error ::Detected $invalid version mismatches."
-            exit 1
+          if [ "$updated" -eq 1 ]; then
+            mv "$tmpfile" gradle.properties
+            git config --global user.name "${{ github.actor }}"
+            git config --global user.email "${{ github.actor }}@users.noreply.github.com"
+            git commit -am "chore: update version to $expected"
+            git push
+          else
+            echo "No version updates needed."
+            rm "$tmpfile"
           fi
 
       - name: Publish to GitHub Packages
