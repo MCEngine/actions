@@ -26,6 +26,9 @@ jobs:
           java-version: 17
           distribution: temurin
 
+      - name: Set up Gradle (fallback if no wrapper)
+        uses: gradle/gradle-build-action@v3
+
       - name: Calculate expected version
         id: version
         run: |
@@ -99,11 +102,20 @@ jobs:
             rm "$tmpfile"
           fi
 
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
+      - name: Make gradlew executable (if exists)
+        run: |
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+          fi
 
       - name: Publish to GitHub Packages
-        run: ./gradlew publish
+        run: |
+          if [ -f ./gradlew ] && [ -f ./gradle/wrapper/gradle-wrapper.jar ]; then
+            ./gradlew publish
+          else
+            echo "Gradle wrapper not found. Falling back to system Gradle."
+            gradle publish
+          fi
         env:
           USER_GIT_NAME: ${{ github.actor }}
           USER_GITHUB_TOKEN: ${{ secrets.USER_GITHUB_TOKEN }}
