@@ -99,6 +99,9 @@ jobs:
             rm "$tmpfile"
           fi
 
+      - name: Make gradlew executable
+        run: chmod +x ./gradlew
+
       - name: Publish to GitHub Packages
         run: ./gradlew publish
         env:
