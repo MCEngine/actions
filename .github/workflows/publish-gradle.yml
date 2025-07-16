@@ -52,14 +52,19 @@ jobs:
             12) m1=1; m2=2 ;;
           esac
 
-          echo "Debug: year=$year, month=$month, day=$day, m1=$m1, m2=$m2"
-
           if [ "$day" -eq 1 ]; then
             version="$year.$m1.$m2"
           else
-            version="$year.$m1.$m2-$day"
+            next_m1=$m1
+            next_m2=$((m2 + 1))
+            if [ "$next_m2" -gt 9 ]; then
+              next_m2=0
+              next_m1=$((m1 + 1))
+            fi
+            version="$year.$next_m1.$next_m2-$day"
           fi
 
+          echo "Debug: year=$year, month=$month, day=$day, version=$version"
           echo "version=$version" >> $GITHUB_OUTPUT
 
       - name: Check and Update Versions in gradle.properties
@@ -128,7 +133,7 @@ jobs:
           version="${{ steps.version.outputs.version }}"
           tag="$version"
           body="Automated release for version $version"
-          
+
           git tag "$tag"
           git push origin "$tag"
 
@@ -143,4 +148,4 @@ jobs:
             "draft": false,
             "prerelease": false
           }
-          EOF
+EOF
