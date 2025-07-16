@@ -47,6 +47,8 @@ jobs:
             version="$year.$m1.$m2-$day"
           fi
 
+          echo "Debug: year=$year, month=$month, day=$day, m1=$m1, m2=$m2"
+
           echo "version=$version" >> $GITHUB_OUTPUT
 
       - name: Check version entries in gradle.properties
