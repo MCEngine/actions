@@ -55,13 +55,7 @@ jobs:
           if [ "$day" -eq 1 ]; then
             version="$year.$m1.$m2"
           else
-            next_m1=$m1
-            next_m2=$((m2 + 1))
-            if [ "$next_m2" -gt 9 ]; then
-              next_m2=0
-              next_m1=$((m1 + 1))
-            fi
-            version="$year.$next_m1.$next_m2-$day"
+            version="$year.$m1.$m2-$day"
           fi
 
           echo "Debug: year=$year, month=$month, day=$day, version=$version"
