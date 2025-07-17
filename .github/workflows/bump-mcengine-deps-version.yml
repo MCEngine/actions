@@ -1,0 +1,82 @@
+name: Bump mcengine Dependency Versions
+
+on:
+  workflow_call:
+    secrets:
+      USER_GITHUB_TOKEN:
+        required: true
+
+jobs:
+  bump-mcengine-deps:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.USER_GITHUB_TOKEN }}
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: 17
+          distribution: temurin
+
+      - name: Calculate today's version
+        id: version
+        run: |
+          tz="Asia/Bangkok"
+          year=$(TZ=$tz date +"%Y")
+          month=$(TZ=$tz date +"%-m")
+          day=$(TZ=$tz date +"%-d")
+
+          case "$month" in
+            1)  m1=0; m2=1 ;;
+            2)  m1=0; m2=2 ;;
+            3)  m1=0; m2=3 ;;
+            4)  m1=0; m2=4 ;;
+            5)  m1=0; m2=5 ;;
+            6)  m1=0; m2=6 ;;
+            7)  m1=0; m2=7 ;;
+            8)  m1=0; m2=8 ;;
+            9)  m1=0; m2=9 ;;
+            10) m1=1; m2=0 ;;
+            11) m1=1; m2=1 ;;
+            12) m1=1; m2=2 ;;
+          esac
+
+          if [ "$day" -eq 1 ]; then
+            version="$year.$m1.$m2"
+          else
+            version="$year.$m1.$m2-$day"
+          fi
+
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+      - name: Update mcengine dependencies
+        run: |
+          version="${{ steps.version.outputs.version }}"
+          echo "Updating io.github.mcengine dependencies to version $version"
+          updated_files=()
+
+          while IFS= read -r -d '' file; do
+            if grep -q "io.github.mcengine" "$file"; then
+              echo "✔ Found mcengine dependency in $file"
+              sed -i.bak -E "s|(io\.github\.mcengine[^:]*):[^:\"]+|\1:$version|g" "$file"
+              if ! cmp -s "$file" "$file.bak"; then
+                updated_files+=("$file")
+              fi
+              rm "$file.bak"
+            fi
+          done < <(find . -type f -name "build.gradle" -print0)
+
+          if [ ${#updated_files[@]} -gt 0 ]; then
+            git config user.name "${{ github.actor }}"
+            git config user.email "${{ github.actor }}@users.noreply.github.com"
+            git add "${updated_files[@]}"
+            git commit -m "chore: bump io.github.mcengine deps to $version"
+            git remote set-url origin https://x-access-token:${{ secrets.USER_GITHUB_TOKEN }}@github.com/${{ github.repository }}
+            git push origin HEAD
+          else
+            echo "No dependencies updated."
+          fi
