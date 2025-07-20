@@ -68,7 +68,6 @@ jobs:
           echo "Expected version: $expected"
 
           updated=0
-
           tmpfile=$(mktemp)
 
           while IFS= read -r line; do
@@ -90,8 +89,8 @@ jobs:
 
           if [ "$updated" -eq 1 ]; then
             mv "$tmpfile" gradle.properties
-            git config user.name "${{ github.actor }}"
-            git config user.email "${{ github.actor }}@users.noreply.github.com"
+            git config user.name "agent-mcengine"
+            git config user.email "agent-mcengine@users.noreply.github.com"
             git add gradle.properties
             git commit -m "chore: update version to $expected"
             git remote set-url origin https://x-access-token:${{ secrets.USER_GITHUB_TOKEN }}@github.com/${{ github.repository }}
@@ -99,7 +98,6 @@ jobs:
           else
             echo "No version updates needed."
             rm "$tmpfile"
-          fi
 
       - name: Make gradlew executable (if exists)
         run: |
@@ -128,6 +126,8 @@ jobs:
           tag="$version"
           body="Automated release for version $version"
 
+          git config user.name "agent-mcengine"
+          git config user.email "agent-mcengine@users.noreply.github.com"
           git tag "$tag"
           git push origin "$tag"
 
@@ -182,8 +182,8 @@ jobs:
           done < gradle.properties
 
           mv "$tmpfile" gradle.properties
-          git config user.name "${{ github.actor }}"
-          git config user.email "${{ github.actor }}@users.noreply.github.com"
+          git config user.name "agent-mcengine"
+          git config user.email "agent-mcengine@users.noreply.github.com"
           git add gradle.properties
           git commit -m "chore: bump version to $next_version for next dev cycle"
           git remote set-url origin https://x-access-token:${{ secrets.USER_GITHUB_TOKEN }}@github.com/${{ github.repository }}
