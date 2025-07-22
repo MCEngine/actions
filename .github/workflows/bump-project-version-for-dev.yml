@@ -51,7 +51,7 @@ jobs:
 
           tmpfile=$(mktemp)
           while IFS= read -r line; do
-            if [[ "$line" =~ ^(mcengine(-[a-zA-Z0-9]+)?(-(api|common))?\.version)=(.*)$ ]]; then
+            if [[ "$line" =~ ^(mcengine.*\.version)=(.*)$ ]]; then
               key="${BASH_REMATCH[1]}"
               echo "$key=$next_version" >> "$tmpfile"
               echo "✎ Bumped $key to $next_version"
