@@ -23,6 +23,9 @@ jobs:
       - name: Bump to same day's development version with -1
         if: success()
         run: |
+          git fetch origin
+          git reset --hard origin/master
+
           tz="Asia/Bangkok"
           year=$(TZ=$tz date +"%Y")
           month=$(TZ=$tz date +"%-m")
@@ -62,7 +65,5 @@ jobs:
           git config user.email "agent-mcengine@users.noreply.github.com"
           git add gradle.properties
           git commit -m "chore: bump version to $next_version for next dev cycle"
-          git fetch origin
-          git reset --hard origin/master
           git remote set-url origin https://x-access-token:${{ secrets.USER_GITHUB_TOKEN }}@github.com/${{ github.repository }}
           git push origin HEAD
