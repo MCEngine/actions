@@ -60,8 +60,8 @@ jobs:
           mv "$tmpfile" gradle.properties
           git config user.name "agent-mcengine"
           git config user.email "agent-mcengine@users.noreply.github.com"
-          git pull --rebase origin master
           git add gradle.properties
           git commit -m "chore: bump version to $next_version for next dev cycle"
+          git pull --rebase origin master
           git remote set-url origin https://x-access-token:${{ secrets.USER_GITHUB_TOKEN }}@github.com/${{ github.repository }}
           git push origin HEAD
