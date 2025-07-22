@@ -1,0 +1,94 @@
+name: Update Project Version
+
+on:
+  workflow_call:
+    inputs:
+      repo-name:
+        required: true
+        type: string
+    secrets:
+      USER_GITHUB_TOKEN:
+        required: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.USER_GITHUB_TOKEN }}
+
+      - name: Calculate expected version
+        id: version
+        run: |
+          tz="Asia/Bangkok"
+          year=$(TZ=$tz date +"%Y")
+          month=$(TZ=$tz date +"%-m")
+          day=$(TZ=$tz date +"%-d")
+
+          case "$month" in
+            1)  m1=0; m2=1 ;;
+            2)  m1=0; m2=2 ;;
+            3)  m1=0; m2=3 ;;
+            4)  m1=0; m2=4 ;;
+            5)  m1=0; m2=5 ;;
+            6)  m1=0; m2=6 ;;
+            7)  m1=0; m2=7 ;;
+            8)  m1=0; m2=8 ;;
+            9)  m1=0; m2=9 ;;
+            10) m1=1; m2=0 ;;
+            11) m1=1; m2=1 ;;
+            12) m1=1; m2=2 ;;
+          esac
+
+          if [ "$day" -eq 1 ]; then
+            version="$year.$m1.$m2"
+          else
+            version="$year.$m1.$m2-$day"
+          fi
+
+          echo "Debug: year=$year, month=$month, day=$day, version=$version"
+          echo "version=$version" >> $GITHUB_OUTPUT
+
+      - name: Check and Update Versions in gradle.properties
+        id: fix_versions
+        run: |
+          expected="${{ steps.version.outputs.version }}"
+          echo "Expected version: $expected"
+
+          updated=0
+          tmpfile=$(mktemp)
+
+          while IFS= read -r line; do
+            if [[ "$line" =~ ^(mcengine(-[a-zA-Z0-9]+)?(-(api|common))?\.version)=(.*)$ ]]; then
+              key="${BASH_REMATCH[1]}"
+              val="${BASH_REMATCH[5]}"
+              if [[ "$val" != "$expected" ]]; then
+                echo "$key=$expected" >> "$tmpfile"
+                echo "✎ Updated $key from $val to $expected"
+                updated=1
+              else
+                echo "$line" >> "$tmpfile"
+                echo "✔ $key = $val"
+              fi
+            else
+              echo "$line" >> "$tmpfile"
+            fi
+          done < gradle.properties
+
+          if [ "$updated" -eq 1 ]; then
+            mv "$tmpfile" gradle.properties
+            git config user.name "agent-mcengine"
+            git config user.email "agent-mcengine@users.noreply.github.com"
+            git add gradle.properties
+            git commit -m "chore: update version to $expected"
+            git remote set-url origin https://x-access-token:${{ secrets.USER_GITHUB_TOKEN }}@github.com/${{ github.repository }}
+            git push origin HEAD
+          else
+            echo "No version updates needed."
+            rm "$tmpfile"
+          fi
+
+
