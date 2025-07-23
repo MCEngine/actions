@@ -29,6 +29,9 @@ jobs:
       - name: Calculate today's version
         id: version
         run: |
+          git fetch origin
+          git reset --hard origin/master
+
           tz="Asia/Bangkok"
           year=$(TZ=$tz date +"%Y")
           month=$(TZ=$tz date +"%-m")
