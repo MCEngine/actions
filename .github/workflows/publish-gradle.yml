@@ -30,7 +30,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v3
 
       - name: Fetch repo
-        id: version
+        id: fetch
         run: |
           git fetch origin
           git reset --hard origin/master
