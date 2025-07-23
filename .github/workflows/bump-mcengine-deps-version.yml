@@ -69,7 +69,7 @@ jobs:
           while IFS= read -r -d '' file; do
             if grep -q "io.github.mcengine" "$file"; then
               echo "✔ Found mcengine dependency in $file"
-              sed -i.bak -E "s|(io\.github\.mcengine[^:]*):[^:\"]+|\1:$version|g" "$file"
+              sed -i.bak -E "s|(io\.github\.mcengine:[^:]+):[^:\"]+|\1:$version|g" "$file"
               if ! cmp -s "$file" "$file.bak"; then
                 updated_files+=("$file")
               fi
