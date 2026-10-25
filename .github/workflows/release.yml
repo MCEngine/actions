@@ -24,8 +24,9 @@ name: Release
 # with relative links pointed at the tagged files; without one the merged pull
 # requests are listed instead.
 #
-# The caller grants the permissions: contents: write to create the release and
-# actions: write to delete the artifact.
+# The caller grants the permissions: contents: write to create the release,
+# actions: write to delete the artifact, and packages: read so a plugin that
+# depends on another plugin's library can resolve it from GitHub Packages.
 on:
   workflow_call:
     inputs:
@@ -66,6 +67,7 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+      packages: read
     outputs:
       release: ${{ steps.release.outputs.release }}
       tag: ${{ steps.release.outputs.tag }}
@@ -123,6 +125,8 @@ jobs:
       - name: Build the jars
         if: steps.release.outputs.release == 'true'
         env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ github.token }}
           ASSEMBLE_TASK: ${{ inputs.assemble-task }}
         run: ./gradlew "$ASSEMBLE_TASK"
 

@@ -65,6 +65,7 @@ jobs:
     permissions:
       contents: write
       actions: write
+      packages: read
     uses: MCEngine/actions/.github/workflows/release.yml@master
     with:
       tag: ${{ inputs.tag }}
@@ -97,5 +98,9 @@ jobs:
 * The default branch is `master`.
 * Release notes come from `wiki/logs/{Major}/{Minor}/{Patch}/CHANGELOG.md` when it
   exists in the tagged commit; otherwise GitHub lists the merged pull requests.
-* Publishing needs `GITHUB_ACTOR` and `GITHUB_TOKEN` read by the Gradle
-  `GitHubPackages` repository, which the workflow sets.
+* The Gradle build reads `GITHUB_ACTOR` and `GITHUB_TOKEN` for its GitHub
+  Packages repositories, both to publish and to resolve another plugin's
+  library; the workflows set them on every Gradle step.
+* A plugin that resolves another repository's package needs that package to
+  grant it access (the package's *Manage Actions access* setting), because the
+  workflow token only reaches its own repository's packages by default.
