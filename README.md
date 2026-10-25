@@ -6,7 +6,7 @@ those call the reusable workflows here, so the release logic lives in one place.
 
 | Workflow | What it does |
 |---|---|
-| [`publish.yml`](.github/workflows/publish.yml) | Tests, publishes the library modules to GitHub Packages, and tags `v{project-version}` when that tag does not exist yet. |
+| [`publish.yml`](.github/workflows/publish.yml) | When a `release/{version}` pull request merges, tests, publishes the library modules to GitHub Packages, and tags `v{project-version}` when that tag does not exist yet. |
 | [`release.yml`](.github/workflows/release.yml) | Builds the distributed jars from the tag and attaches them to a GitHub release, with the version's changelog as the notes. |
 
 ## Using them from a plugin
@@ -17,7 +17,8 @@ those call the reusable workflows here, so the release logic lives in one place.
 name: Publish
 
 on:
-  push:
+  pull_request:
+    types: [closed]
     branches: [master]
   workflow_dispatch:
 
@@ -29,6 +30,11 @@ permissions: {}
 
 jobs:
   publish:
+    # Only a merged release/{version} pull request, or a retry by hand.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.merged &&
+       startsWith(github.event.pull_request.head.ref, 'release/'))
     permissions:
       contents: write
       packages: write
@@ -45,7 +51,7 @@ on:
   workflow_run:
     workflows: [Publish]
     types: [completed]
-    branches: [master]
+    branches: ['release/**', master]
   workflow_dispatch:
     inputs:
       tag:
@@ -96,6 +102,11 @@ jobs:
 * The version is `project-version` in `gradle.properties`, as `Major.Minor.Patch`.
   `0.0.0` means nothing has been released and is never tagged.
 * The default branch is `master`.
+* A release ships by merging a pull request from `release/{version}`, where
+  `{version}` is the `project-version` it merges, with no `v`. Publish skips
+  every other pull request and every push, so an ordinary merge publishes
+  nothing; a `release/` branch whose name and `project-version` disagree fails.
+  `workflow_dispatch` from `master` retries a release after a failure.
 * Release notes come from `wiki/logs/{Major}/{Minor}/{Patch}/CHANGELOG.md` when it
   exists in the tagged commit; otherwise GitHub lists the merged pull requests.
 * The Gradle build reads `GITHUB_ACTOR` and `GITHUB_TOKEN` for its GitHub
