@@ -10,7 +10,9 @@ name: Release
 # they are not attached on their own.
 #
 # A tag pushed with the workflow's own token starts no other workflow, so the
-# caller runs this when a Publish run on master finishes instead. It releases
+# caller runs this when a Publish run finishes instead. Publish tags only a
+# merged release/{version} pull request, or a retry by hand on the default
+# branch, so a Publish run started any other way is skipped here too. It releases
 # the version in gradle.properties when that version's tag exists and has no
 # release yet, so an ordinary merge, whose tag already has its release, does
 # nothing, and a release that failed is tried again by the next merge.
@@ -84,7 +86,15 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           INPUT_TAG: ${{ inputs.tag }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
         run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_run" ] && [ "$RUN_EVENT" != "workflow_dispatch" ] \
+            && ! [[ "$RUN_EVENT" = "pull_request" && "$RUN_BRANCH" =~ ^release/[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::notice::Publish ran for $RUN_EVENT on $RUN_BRANCH, not for a release/{version} merge, nothing to release"
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           version=$(sed -n 's/^project-version=//p' gradle.properties | tr -d '[:space:]')
           tag="${INPUT_TAG:-v$version}"
           if ! [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then

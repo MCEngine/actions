@@ -4,7 +4,13 @@ name: Publish
 # .github/workflows/publish.yml. It runs in the caller's repository, so every
 # github.* value and the token below belong to the plugin, not to this one.
 #
-# The version is project-version in the caller's gradle.properties. The first
+# It publishes only a merged release pull request: the caller runs it when a
+# pull request closes, and the first step stops unless that pull request was
+# merged from a release/{version} branch whose {version} is the project-version
+# it merged. Any other event stops there too, except workflow_dispatch on the
+# default branch, which retries a release after a failure.
+#
+# The version is project-version in the caller's gradle.properties. The next
 # step looks for the v{version} tag on the remote: when it exists the run stops
 # there, so an ordinary merge that leaves the version alone publishes nothing.
 # When it does not exist the run tests, publishes, and only then creates the
@@ -61,15 +67,62 @@ jobs:
       tag: ${{ steps.release.outputs.tag }}
       publish: ${{ steps.release.outputs.publish }}
     steps:
+      - name: Check that a release branch merged
+        id: gate
+        env:
+          EVENT: ${{ github.event_name }}
+          MERGED: ${{ github.event.pull_request.merged }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          DEFAULT_REF: refs/heads/${{ github.event.repository.default_branch }}
+        run: |
+          case "$EVENT" in
+            pull_request)
+              if [ "$MERGED" != "true" ]; then
+                echo "::notice::the pull request closed without merging, nothing to publish"
+                echo "run=false" >> "$GITHUB_OUTPUT"
+              elif ! [[ "$HEAD_REF" =~ ^release/([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+                echo "::notice::$HEAD_REF is not a release/{version} branch, nothing to publish"
+                echo "run=false" >> "$GITHUB_OUTPUT"
+              else
+                echo "run=true" >> "$GITHUB_OUTPUT"
+                echo "branch-version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+                echo "sha=$MERGE_SHA" >> "$GITHUB_OUTPUT"
+              fi
+              ;;
+            workflow_dispatch)
+              if [ "$GITHUB_REF" != "$DEFAULT_REF" ]; then
+                echo "::error::run Publish by hand from the default branch, not $GITHUB_REF"
+                exit 1
+              fi
+              echo "run=true" >> "$GITHUB_OUTPUT"
+              echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo "::notice::Publish runs for a merged release/{version} pull request, not for $EVENT"
+              echo "run=false" >> "$GITHUB_OUTPUT"
+              ;;
+          esac
+
       - name: Check out
+        if: steps.gate.outputs.run == 'true'
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.gate.outputs.sha }}
 
       - name: Read the version and look for its tag
         id: release
+        if: steps.gate.outputs.run == 'true'
+        env:
+          BRANCH_VERSION: ${{ steps.gate.outputs.branch-version }}
         run: |
           version=$(sed -n 's/^project-version=//p' gradle.properties | tr -d '[:space:]')
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::project-version '$version' in gradle.properties is not Major.Minor.Patch"
+            exit 1
+          fi
+          if [ -n "$BRANCH_VERSION" ] && [ "$BRANCH_VERSION" != "$version" ]; then
+            echo "::error::release/$BRANCH_VERSION merged project-version $version"
             exit 1
           fi
           tag="v$version"
@@ -108,9 +161,10 @@ jobs:
         if: steps.release.outputs.publish == 'true'
         env:
           TAG: ${{ steps.release.outputs.tag }}
+          SHA: ${{ steps.gate.outputs.sha }}
           GITHUB_ACTOR_ID: ${{ github.actor_id }}
         run: |
           git config user.name "$GITHUB_ACTOR"
           git config user.email "${GITHUB_ACTOR_ID}+${GITHUB_ACTOR}@users.noreply.github.com"
-          git tag -a "$TAG" -m "$TAG" "$GITHUB_SHA"
+          git tag -a "$TAG" -m "$TAG" "$SHA"
           git push origin "refs/tags/$TAG"
