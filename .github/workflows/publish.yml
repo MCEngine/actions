@@ -1,0 +1,114 @@
+name: Publish
+
+# Shared Publish workflow, called by each plugin repository's own
+# .github/workflows/publish.yml. It runs in the caller's repository, so every
+# github.* value and the token below belong to the plugin, not to this one.
+#
+# The version is project-version in the caller's gradle.properties. The first
+# step looks for the v{version} tag on the remote: when it exists the run stops
+# there, so an ordinary merge that leaves the version alone publishes nothing.
+# When it does not exist the run tests, publishes, and only then creates the
+# tag, so a failed publish never leaves a tag behind and the next run tries
+# again. Version 0.0.0 means "never released yet" and is skipped the same way.
+#
+# A repository whose modules are not published to GitHub Packages passes
+# publish-packages: false; the run still tests and tags the release, which is
+# what the Release workflow builds its GitHub release from.
+#
+# The caller grants the permissions: contents: write to push the tag and
+# packages: write to publish.
+on:
+  workflow_call:
+    inputs:
+      java-version:
+        description: JDK version used to build the plugin.
+        required: false
+        type: string
+        default: '25'
+      publish-packages:
+        description: Run the Gradle publish task. False only tests and tags.
+        required: false
+        type: boolean
+        default: true
+      build-task:
+        description: Gradle task that builds and tests the release.
+        required: false
+        type: string
+        default: build
+      publish-task:
+        description: Gradle task that publishes the library modules.
+        required: false
+        type: string
+        default: publish
+    outputs:
+      tag:
+        description: The v{version} tag this run looked for.
+        value: ${{ jobs.release.outputs.tag }}
+      published:
+        description: True when this run published and created the tag.
+        value: ${{ jobs.release.outputs.publish }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+      publish: ${{ steps.release.outputs.publish }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Read the version and look for its tag
+        id: release
+        run: |
+          version=$(sed -n 's/^project-version=//p' gradle.properties | tr -d '[:space:]')
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::project-version '$version' in gradle.properties is not Major.Minor.Patch"
+            exit 1
+          fi
+          tag="v$version"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ "$version" = "0.0.0" ]; then
+            echo "::notice::project-version is 0.0.0, nothing has been released yet"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$(git ls-remote --tags origin "refs/tags/$tag")" ]; then
+            echo "::notice::$tag already exists, nothing to publish"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK ${{ inputs.java-version }}
+        if: steps.release.outputs.publish == 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java-version }}
+          cache: gradle
+
+      - name: Build and test
+        if: steps.release.outputs.publish == 'true'
+        env:
+          BUILD_TASK: ${{ inputs.build-task }}
+        run: ./gradlew "$BUILD_TASK"
+
+      - name: Publish to GitHub Packages
+        if: steps.release.outputs.publish == 'true' && inputs.publish-packages
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PUBLISH_TASK: ${{ inputs.publish-task }}
+        run: ./gradlew "$PUBLISH_TASK"
+
+      - name: Tag the release
+        if: steps.release.outputs.publish == 'true'
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_ACTOR_ID: ${{ github.actor_id }}
+        run: |
+          git config user.name "$GITHUB_ACTOR"
+          git config user.email "${GITHUB_ACTOR_ID}+${GITHUB_ACTOR}@users.noreply.github.com"
+          git tag -a "$TAG" -m "$TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/$TAG"
